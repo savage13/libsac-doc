@@ -1,7 +1,41 @@
-
 # libsac Documentation
 
+
+- xapiir - Signal Filtering
+- crscor - Compute the Cross Correlation of two signals
+- envelope - Compute the envelope of a singal
+- rms - Compute the RootMeanSquare of an signal
+
+- Internal Subroutines (Not called by the user)
+    - fft - Compute the Fast Fourier Transform
+    - copydouble - Copy a singal from one array to another
+    - copyfloat - Copy a signal from one array to another
+    - window - Window a sequence
+    - next2 - Find a power of 2 greater than an integer
+    - firtrn - FIR Filter
+    - overlap - Overlap Save Routine
+    - zshft - Shfit a signal with zero-filling
+    - zero - Multiply a singal by 0.0
+    - apply - Apply a IIR Digital filter to a signal (in-place)
+    - design - Design IIR Digital filter from Analog Prototype
+    - bilin2 - Convert Analog Filter to a Digital Filter using Bilinear Transform
+    - warp - Tangent frequency warping to account for Bilinear Transformation
+    - cutoffs - Alter cutoffs of a Analog Filter
+    - Analog Filter Transformations
+        - lp
+        - lptbp
+        - lptbr
+        - lpthp
+    - Analog Filter Prototypes
+        - chebparm
+        - buroots
+        - beroots
+        - c1roots
+        - c2roots
+
 ## firtrn
+
+
 Calculate Hilbert or derivative of a signal with a FIR Filter
 
     void firtrn(char *ftype, float *x, int n, float *buffer, float *y)
