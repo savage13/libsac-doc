@@ -33,77 +33,6 @@
         - c1roots
         - c2roots
 
-## firtrn
-
-
-Calculate Hilbert or derivative of a signal with a FIR Filter
-
-    void firtrn(char *ftype, float *x, int n, float *buffer, float *y)
-    
-    ftype - Desired Transform
-        - HILBERT
-        - DERIVATIVE of Hilbert Transform
-    x - input signal
-    n - length of input signal
-    buffer - temp storage, min size of 4297
-    y - output array
-    
-Hilbert transform coefficients
-
-    C_i = (2.0/pi*(2*i-1)) * (0.54 + 0.46 *cos( 2 * pi * ( 2*i - 1 ) / 201
-
-
-
-## overlp
-Overlap - save routine
-
-      void overlp(float *input, int npts, float *output, float *c, int nc, int nfft, float *buffer, float *cbuff)
-      
-      input - input signal
-      npts - length of input signal
-      output - filtered output, may be the same as input
-      c - coefficent sequence of filter
-      nc - length of coeffience sequence
-      nfft - lenght of FFT in convolutions
-      buffer - temp storage - must be 2 * nfft
-      cbuff - temp storage - must be 2 * nfft
-      
-Perform convolution of signals input and c to apply filter / transform
-
-## zshft
-Shift a signal in place with zero-filling
-
-    void zshft(float *signal, int n, in ishft) 
-    
-    signal - input signal to be shifted
-    n - length of signal
-    ishft - number of samples to shift
-      - > 0 shift to the right
-      - < 0 shift to the left
-      
-
-## zero
-Multiply (or set) a signal to 0.0
-
-    void zero(float *a, int n)
-    
-    a - signal to set to 0.0
-    n - length of signal
-
-## fft
-Compute Fast Fourier transform of a sequence
-
-    void fft(float *xreal, float *ximag, int n, int idir)
-    
-    xreal - Real part of signal
-    ximag - Imaginary part of signal
-    n - length of signal xreal and ximag
-        signal must be a power of 2
-    idir - Direction of tranform
-       - -1 Forward
-       -  1 Inverse transform (normalization performed)
-
-
 
 ## crscor
 Compute the cross-correlation of two signals
@@ -192,8 +121,8 @@ Otherwise
        y_i = x_i * 0.5 * (1.0 - cos( pi * (fsamp + wlen - 1 - i) )
     else
        y_i = x_i
-rms
----
+## rms
+
 Compute rms value of an array
 
     double rms(float *x, int nsamps)
@@ -205,8 +134,77 @@ RMS value is computed as such
 
 rms = sum (x_i^2)
 
-copydouble
-----------
+## Internal Routines 
+
+### firtrn
+
+Calculate Hilbert or derivative of a signal with a FIR Filter
+
+    void firtrn(char *ftype, float *x, int n, float *buffer, float *y)
+    
+    ftype - Desired Transform
+        - HILBERT
+        - DERIVATIVE of Hilbert Transform
+    x - input signal
+    n - length of input signal
+    buffer - temp storage, min size of 4297
+    y - output array
+    
+Hilbert transform coefficients
+
+    C_i = (2.0/pi*(2*i-1)) * (0.54 + 0.46 *cos( 2 * pi * ( 2*i - 1 ) / 201
+
+### overlp
+Overlap - save routine
+
+      void overlp(float *input, int npts, float *output, float *c, int nc, int nfft, float *buffer, float *cbuff)
+      
+      input - input signal
+      npts - length of input signal
+      output - filtered output, may be the same as input
+      c - coefficent sequence of filter
+      nc - length of coeffience sequence
+      nfft - lenght of FFT in convolutions
+      buffer - temp storage - must be 2 * nfft
+      cbuff - temp storage - must be 2 * nfft
+      
+Perform convolution of signals input and c to apply filter / transform
+
+### zshft
+Shift a signal in place with zero-filling
+
+    void zshft(float *signal, int n, in ishft) 
+    
+    signal - input signal to be shifted
+    n - length of signal
+    ishft - number of samples to shift
+      - > 0 shift to the right
+      - < 0 shift to the left
+      
+
+### zero 
+Multiply (or set) a signal to 0.0
+
+    void zero(float *a, int n)
+    
+    a - signal to set to 0.0
+    n - length of signal
+
+### fft 
+Compute Fast Fourier transform of a sequence
+
+    void fft(float *xreal, float *ximag, int n, int idir)
+    
+    xreal - Real part of signal
+    ximag - Imaginary part of signal
+    n - length of signal xreal and ximag
+        signal must be a power of 2
+    idir - Direction of tranform
+       - -1 Forward
+       -  1 Inverse transform (normalization performed)
+
+### copydouble
+
 Copy a double precision floating point array
 
     void copydouble(double *source, int length, double *sink) 
@@ -215,8 +213,8 @@ Copy a double precision floating point array
     length - length of input and output array
     sink - output array
     
-copyfloat
----------
+### copyfloat
+
 Copy a single precision floating point array
 
     void copyfloat(float *src, float *dest, int n)
@@ -225,16 +223,16 @@ Copy a single precision floating point array
     dest - output array
     n - length of input and output array
     
-next2
------
+## next2 (Internal)
+
 Find the next power of 2 greater than number
 
     int next2(int num)
     
     num - Number to find the next power of 2 greater than
 
-envelope
---------
+## envelope
+
 Envelope of a time series using the Hilbert transform
 
     void envelope(int n, float *in, float *out)
