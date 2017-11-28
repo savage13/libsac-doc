@@ -7,7 +7,265 @@ libsac Documentation
 User Callable Functions
 =======================
 
+Instrument Removal and Addition
+-------------------------------
 
+Apply a instrument change, either removal or additon, in the frequency domain.
+This is also called a deconvolution and convolution::
+
+    void ztransfer(float *dat, int npts, double delta, double *sre, double *sim,
+                   double *xre, double *xim, int nfreq, int nfft, double delfrq,
+                   double *F)
+
+- dat - Input data
+- npts - length of input data
+- delta - time sampling of data
+- sre - Instrument to be Removed, Real component, "FROM transfer function"
+        The real component should be inverted (1/z) on input
+- sim - Instrument to be Removed, Imaginary component, "FROM transfer function"
+        The real component should be inverted (1/z) on input
+- xre - Instrument to be Added, Real component, "TO transfer function"
+- xim - Instrument to be Added, Imaginary component, "TO transfer function"
+- nfreq - nfft / 2 + 1
+- nfft - Length of sre, sim, xre, xim (Frequency domain)
+- delfrq - Sample interval of points in the frequency domain 
+           1.0 / (nfft * delta)
+- F - Frequencies over which to apply the action
+    - F[0] - Low  Frequency at which action is not performed, but set to 0.0
+    - F[1] - Low  Frequency at which action is performed
+    - F[2] - High Frequency at which action is performed
+    - F[3] - High Frequency at which action is not performed, but set to 0.0
+
+Note: Wow, this is super complicated with lots of pitfalls.
+It should be streamlined for typical use cases, like removal and convolution.
+
+Tranfer - Taper Frequency
+-------------------------
+
+Transfer - Compute Response
+---------------------------
+
+Transfer - Read PoleZero files
+------------------------------
+
+Remove Mean
+-----------
+
+Remove the mean of a data series::
+
+    void
+    rmean(float *data, int n, float mean)
+
+- data - Input data series
+- n - length of data
+- mean - mean to remove from data
+
+
+Remove Trend
+------------
+
+Remove the trend of a data series::
+
+    void
+    rtrend(float *data, int n, float yint, float slope, float b, float delta)
+
+- data - Input data series, overwritten on output
+- n - length of data
+- yint - Y intercept of the trend to remove
+- slope - Slope of the Trend to remove
+- b - Initial time value of the data series
+- delta - Time sampling of the data
+
+Trend is removed as::
+
+    y[i] = y[i] - yint - slope * (b + delta * i)
+
+where y is the data
+
+Remove Trend - Unevenly sampled data
+------------------------------------
+
+Removing the trend from an unevenly sampled data ::
+
+    void rtrend2(float *data, int n, float yint, float slope, float *t)
+
+- data - Input data series, overwritten on output
+- n - Length of data
+- yint - Y intercept of the trend to remove
+- slope - Slope of the trend to remove
+- t - time values for the unevenly sampled data
+
+Trend is removed as::
+
+    y[i] = y[i] - yint - slope * t[i]
+
+where y is the data
+
+Find Slope of Data
+------------------
+
+Fit a line to the a data series using a linear least squares approach::
+
+    void lifite(double x1, double dx, float *y, int n, float *a, float *b, 
+                float *siga, float *sigb, float *sig, float *cc) {
+
+- x1 - Begining value, b-value typically
+- dx - Time sampling of data
+- y - Input data series (Amplitude)
+- n - length of y
+- a - Output slope of linear fit
+- b - Output trend of linear fit
+- siga - Standard deviation of slope
+- sigb - Standard deviation of trend
+- sig - Standard deviation of data
+- cc - Correlation coefficent between data and linear fit
+
+
+Find Slope of Data - Unevenly spaced data
+-----------------------------------------
+
+Fit a line to an unevely spaced data using a linear least squares approach ::
+
+     void lifitu(float *x, float *y, int n, float *a, float *b,
+                 float *siga, float *sigb, float *sig, float *cc)
+
+- x - Input time values of the data
+- y - Input data values (amplitude)
+- n - length of x and y
+- a - Output slope of the linear fit
+- b - Output trend of the linear fit
+- siga - Standard deviation of the slope
+- sigb - Standard deviation of the trend
+- sig - Standard deviation of data
+- cc - Correlation coefficent between data and linear fit
+
+Interpolate
+-----------
+
+Rotate
+------
+
+Differentiate 2-pt
+------------------
+
+Differentiate a data set using a two point differentiation::
+
+     void dif2(float *array, int n, double step, float *output)
+
+- array - Input data to differentiate
+- n - length of ararry
+- step - Time sampling of input data 
+- output - Output differentiated data, length n-1
+
+This is the default scheme in the SAC program.
+
+The output array will be 1 data point less than the input array.
+
+Since this is not a centered differeniation, there is an implied shift
+in the independent variable by half the step size::
+
+    b_new = b_old + 0.5 * step
+
+Differntiation is performed as::
+
+    out[i] = (1/step) * (in[i+1] - in[i])
+
+Differentiate 3-pt
+------------------
+Perform "three-point" (centered two-point) differntiation::
+
+     void dif3(float *array, int n, double step, float *output)
+
+- array - Input data to differentiate
+- n - length of ararry
+- step - Time sampling of input data 
+- output - Output differentiated data, length n-2
+
+The output array will be 2 data points less than the input array.
+
+There is an implied shift in the time variable by a full step size::
+
+    b_new = b_old + step
+
+Differntiation is performed as::
+
+    out[i] = 1/(2 * step) * (in[i+1] - in[i-1])
+
+Differentiate 5-pt
+------------------
+Perform "fig-point" (centered four-point) differntiation::
+
+     void dif3(float *array, int n, double step, float *output)
+
+- array - Input data to differentiate
+- n - length of ararry
+- step - Time sampling of input data 
+- output - Output differentiated data, length n-2
+
+The output array will be 2 data points less than the input array.
+
+There is an implied shift in the time variable by a full step size::
+
+    b_new = b_old + step
+
+Differntiation is performed in the interior as ::
+
+    out[i] = 2/(3  * step) * (in[i+1] - in[i-1]) -
+             1/(12 * step) * (in[i+2] - in[i-2])
+
+Differentiation at the end points is::
+
+    out[1]   = (in[3] -   in[i]) / (2 * step)
+    out[n-2] = (in[n] - in[n-2]) / (2 * step)
+
+Integerate - Trapezodial
+------------------------
+
+Integrate a data series using the trapezodial method::
+
+    void int_trap(float *y, int n, double delta)
+
+- y - Input data series, overwritten on output
+- n - length of y
+- delta - time sampling of the data series
+
+Integration is performed as::
+
+    out[i] = out[i-1] + (delta/2) * (in[i] + in[i+1])
+
+where the initial out value is 0.0.
+
+The number of points on output should be reduced by 1 ::
+
+     len(out) = len(in) - 1
+
+and the beging value is shifted by -0.5 delta::
+
+     b_out = b_in - 0.5 * delta
+
+Integerate - Rectangular
+------------------------
+
+Integrate a data series using the rectangular method::
+
+    void int_rect(float *y, int n, double delta)
+
+- y - Input data series, overwritten on output
+- n - length of y
+- delta - time sampling of the data series
+
+Integration is performed as::
+
+    out[i] = (delta * in[i]) + out[i-1]
+
+and the initial value is::
+
+    out[0] = in[0] * delta
+
+The number of points and b value are left unchanged here::
+
+    len(out) = len(in)
+    b_out    = b_in
 
 Filtering
 ---------
@@ -15,8 +273,8 @@ Filtering
 Filter data using a Infinite Impulse Response Filter::
 
       void
-      xapiir(float *data, int nsamps, char *aproto, double trbndw, double a, int iord,
-             char *type, double flo, double fhi, double ts, int passes) {
+      xapiir(float *data, int nsamps, char *aproto, double trbndw, double a,
+             int iord, char *type, double flo, double fhi, double ts, int passes)
 
 
 - data - input time series to be filtered, overwritten on output
@@ -26,8 +284,10 @@ Filter data using a Infinite Impulse Response Filter::
    - "BU" - Bessel filter
    - "BU" - Chebyshev Type I filter
    - "BU" - Chebyshev Type II filter
-- trbndw - Transition Bandwidth, only used in Chebyshev Type I and II Filters
-- a - Attenuation factor, amplitude reached at stopband edge, only used in Chebyshev Type I and II Filters
+- trbndw - Transition Bandwidth, only used in Chebyshev Type I and II
+           Filters
+- a - Attenuation factor, amplitude reached at stopband edge, only
+  used in Chebyshev Type I and II Filters
 - iord - Filter Order, not to exceed 10, 4-5 should be sufficient
 - type - Filter Type
    - "LP" - Lowpass
