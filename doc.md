@@ -2,98 +2,214 @@
 libsac Documentation
 ====================
 
+The libsac library contains C / Fortran callable subroutines that utilize the core
+funtionality of the SAC (Seismic Analysis Code) program.  The internal routines here
+are wrapped in an interface that should be more streamlined to use than previous
+versions. Care was taken to make sure the calling routines generate the same output
+as what would be gotten from SAC; most functions here include the equivalent SAC
+commands.
+
+For exhustive examples, please see doc/examples contained in the SAC distribution.
+
 .. contents::
 
 User Callable Functions
 =======================
 
-Instrument Removal and Addition
--------------------------------
 
-Apply a instrument change, either removal or additon, in the frequency domain.
-This is also called a deconvolution and convolution::
+Instrument Removal / Deconvolution
+----------------------------------
 
-    void ztransfer(float *dat, int npts, double delta, double *sre, double *sim,
-                   double *xre, double *xim, int nfreq, int nfft, double delfrq,
-                   double *F)
+.. code-block:: c
 
-- dat - Input data
-- npts - length of input data
-- delta - time sampling of data
-- sre - Instrument to be Removed, Real component, "FROM transfer function"
-        The real component should be inverted (1/z) on input
-- sim - Instrument to be Removed, Imaginary component, "FROM transfer function"
-        The real component should be inverted (1/z) on input
-- xre - Instrument to be Added, Real component, "TO transfer function"
-- xim - Instrument to be Added, Imaginary component, "TO transfer function"
-- nfreq - nfft / 2 + 1
-- nfft - Length of sre, sim, xre, xim (Frequency domain)
-- delfrq - Sample interval of points in the frequency domain 
-           1.0 / (nfft * delta)
-- F - Frequencies over which to apply the action
-    - F[0] - Low  Frequency at which action is not performed, but set to 0.0
-    - F[1] - Low  Frequency at which action is performed
-    - F[2] - High Frequency at which action is performed
-    - F[3] - High Frequency at which action is not performed, but set to 0.0
+    // Remove Evalresp Response 
+    int remove_evalresp_simple(float *data, int n, float dt, double limits[4])
 
-Note: Wow, this is super complicated with lots of pitfalls.
-It should be streamlined for typical use cases, like removal and convolution.
+    // Remove Evalresp Response 
+    int remove_evalresp(float *data, int n, float dt, double limits[4],
+                        char *id, char *when, char *resp_file)
 
-Tranfer - Taper Frequency
--------------------------
+    // Remove SAC_PZ Polezero Response
+    int remove_polezero(float *data, int n, float dt, double limits[4],
+                        char *id, char *when, char *pzfile);
 
-Transfer - Compute Response
----------------------------
+    // Remove SAC_PZ Polezero Response
+    int remove_polezero_simple(float *data, int n, float dt, double limits[4]);
 
-Transfer - Read PoleZero files
-------------------------------
+Remove an evalresp or polezero specified instrument response.  Best to use the `simple` versions unless extra information is required.  `remove_evalresp_simple` and `remove_polezero_simple` will attempt to find the appropriate response file within the same directory before removing.  `remove_evalresp` and `remove_polezero` requires the specification of a response file.
+
+**Arguments**
+
+- `data` - Time series data
+- `n` - Length of data
+- `dt` - Sampling interval (seconds)
+- `limits` - Frequency range over which response is removed (Hz)
+   
+   - `limits[4] = { 0.002, 0.005, 12.0, 20.0 };`
+   - limits[0] - Low  Frequency Edge (Response = 0)
+   - limits[1] - Low  Frequency Edge (Response = 1)
+   - limits[2] - High Frequency Edge (Response = 1)
+   - limits[3] - High Frequency Edge (Response = 0)
+- `id` - Intrument Identifier, NET.STA.LOC.CHA
+
+   - `*.*.*.*` wildcards are valid, but unexpected results may occur
+   - `*` will try to automatically determine the instrument id using the current sac file
+- `when` - Reference time, YYYY,DDD,HH:MM:SS
+
+   - `*` will try to automatically determine the reference time using the current sac file
+- `resp_file` - Evalresp Response File
+- `pzfile` - Polezero Response File
+
+**Note:** Data is modified in place.
+
+**Examples**
+
+.. code-block:: fortran
+
+    implicit none
+    include "sacf.h"
+    real*4 y(1999), b, dt
+    integer n, nerr, nmax
+    real*8 limits(4)
+
+    ! Function Prototypes
+    integer remove_evalresp_simple
+
+    nmax = 1999
+
+    ! Frequency Limits (Hz)
+    limits(1) = 0.002
+    limits(2) = 0.005
+    limits(3) = 12.0
+    limits(4) = 20.0
+
+    ! Read in Raw Sac file
+    call rsac1("raw.sac", y, n, b, dt, nmax, nerr)
+
+    ! Remove Response using Evalresp
+    if(remove_evalresp_simple(y, n, dt, limits) .ne. 0) then
+       write(*,*) "Error removing instrument with evalresp"
+       return
+    endif
+
+**Effective SAC Commands**
+
+.. code-block:: shell
+
+    SAC> read raw.sac
+    SAC> transfer from evalresp to none freq 0.002 0.005 12 20
+
 
 Remove Mean
 -----------
 
-Remove the mean of a data series::
+.. code-block:: c
 
-    void
-    rmean(float *data, int n, float mean)
+    void  remove_mean(float *data, int n)
 
-- data - Input data series
-- n - length of data
-- mean - mean to remove from data
+Remove the mean of a data series.  The mean of the data series is automatically calculated and removed from the data series. 
+
+**Arguments**
+
+- `data` - Input data series
+- `n` - length of data
+
+**Note:** Data is modified in place.
+
+**Examples**
+
+.. code-block:: fortran
+
+    implicit none
+
+    integer,parameter :: nmax = 1776
+    integer :: npts, nerr
+    real*4 :: data(nmax), beg, dt
+
+    ! Read in the data file
+    call rsac1('raw.sac', data, npts, beg, dt, nmax, nerr)
+
+    ! Remove the mean of the data in place
+    call remove_mean(data, npts)
+
+**Effective SAC Commands**
+
+.. code-block:: shell
+
+    SAC> read raw.sac
+    SAC> rmean
 
 
 Remove Trend
 ------------
 
-Remove the trend of a data series::
+.. code-block:: c
 
-    void
-    rtrend(float *data, int n, float yint, float slope, float b, float delta)
+    void remove_trend(float *data, int n, float delta, float b)
 
-- data - Input data series, overwritten on output
-- n - length of data
-- yint - Y intercept of the trend to remove
-- slope - Slope of the Trend to remove
-- b - Initial time value of the data series
-- delta - Time sampling of the data
+Remove the trend of a data series
 
-Trend is removed as::
+**Arguments**
+
+- `data` - Input data series, overwritten on output
+- `n` - length of data
+- `delta` - Time sampling of the data
+- `b` - Initial time value of the data series
+
+**Note:** Data is modified in place.
+
+This calls lifite() and rtrend() internally
+
+Trend is removed as
+
+.. code-block:: c
 
     y[i] = y[i] - yint - slope * (b + delta * i)
 
 where y is the data
 
+**Examples**
+
+.. code-block:: c
+
+    #define NMAX 1969
+
+    float y[NMAX], b, dt;
+    int nmax = NMAX;
+    int n, nerr;
+
+    // Read in the data file
+    rsac1("raw.sac", y, &n, &b, &dt, &nmax, &nerr, -1);
+
+    // Remove the trend of the data in place
+    remove_trend(y, n, dt, b);
+
+**Effective SAC Commands**
+
+.. code-block:: shell
+
+    SAC> read raw.sac
+    SAC> rtrend
+
+
 Remove Trend - Unevenly sampled data
 ------------------------------------
 
-Removing the trend from an unevenly sampled data ::
+.. code-block:: c
 
     void rtrend2(float *data, int n, float yint, float slope, float *t)
 
-- data - Input data series, overwritten on output
-- n - Length of data
-- yint - Y intercept of the trend to remove
-- slope - Slope of the trend to remove
-- t - time values for the unevenly sampled data
+Removing the trend from an unevenly sampled data ::
+
+**Arguments**
+
+- `data` - Input data series, overwritten on output
+- `n` - Length of data
+- `yint` - Y intercept of the trend to remove
+- `slope` - Slope of the trend to remove
+- `t` - time values for the unevenly sampled data
+
+**Note:** Data is modified in place.
 
 Trend is removed as::
 
@@ -101,61 +217,362 @@ Trend is removed as::
 
 where y is the data
 
-Find Slope of Data
-------------------
-
-Fit a line to the a data series using a linear least squares approach::
-
-    void lifite(double x1, double dx, float *y, int n, float *a, float *b, 
-                float *siga, float *sigb, float *sig, float *cc) {
-
-- x1 - Begining value, b-value typically
-- dx - Time sampling of data
-- y - Input data series (Amplitude)
-- n - length of y
-- a - Output slope of linear fit
-- b - Output trend of linear fit
-- siga - Standard deviation of slope
-- sigb - Standard deviation of trend
-- sig - Standard deviation of data
-- cc - Correlation coefficent between data and linear fit
-
-
-Find Slope of Data - Unevenly spaced data
------------------------------------------
-
-Fit a line to an unevely spaced data using a linear least squares approach ::
-
-     void lifitu(float *x, float *y, int n, float *a, float *b,
-                 float *siga, float *sigb, float *sig, float *cc)
-
-- x - Input time values of the data
-- y - Input data values (amplitude)
-- n - length of x and y
-- a - Output slope of the linear fit
-- b - Output trend of the linear fit
-- siga - Standard deviation of the slope
-- sigb - Standard deviation of the trend
-- sig - Standard deviation of data
-- cc - Correlation coefficent between data and linear fit
-
-Interpolate
------------
 
 Rotate
 ------
 
+.. code-block:: c
+
+    void rotate(float *si1, float *si2, int ns, double angle, 
+                int lnpi, int lnpo, float *so1, float *so2)
+
+To perform a clockwise rotation of a pair of signals.
+
+**Arguments**
+
+- `sil` - First input signal
+- `si2` - Second input signal
+- `ns` - Number of points in input signals, `sil` and `si2`
+- `angle` - Angle of rotateion in degrees clockwise from `si1`
+- `lnpi` - True (1) if input signals are normal polarity
+- `lnpo` - True (1) if output signals are normal polarity
+- `so1` - First output signals
+- `so2` - Second output signals 
+
+**Note:** Input and output signals may be the same arrays
+
+**Examples**
+
+Rotation of two signal in Fortran
+
+.. code-block:: fortran
+
+    implicit none
+
+    integer,parameter :: nmax = 1954
+    integer :: npts, nerr
+    real :: signal1(nmax), signal2(nmax)
+    real :: rotated_signal1(nmax), rotated_signal2(nmax)
+    real :: beg, dt, baz, cmpaz1
+    real*8 :: angle
+    logical :: lnpi, lnpo
+
+    integer sac_compare
+
+    ! Read in the first signal to be rotated
+    call rsac1('signal1.sac', signal1, npts, beg, dt, nmax, nerr)
+
+    call getfhv("cmpaz", cmpaz1, nerr)
+    call getfhv("baz", baz, nerr);
+
+    ! Read in the second signal to be rotated
+    call rsac1('signal2.sac', signal2, npts, beg, dt, nmax, nerr)
+
+    ! Set up parameters for rotation
+    lnpi = .true.     ! input signals have "normal" polarity
+    lnpo = .true.     ! output signals have "normal polarity
+
+    ! Compute angle to rotate to
+    angle = baz + 180.0 - cmpaz1;
+
+    call rotate(signal1, signal2, npts, angle, lnpi, lnpo,
+                rotated_signal1, rotated_signal2)
+
+
+**Effective SAC Commands**
+
+.. code-block:: shell
+
+    SAC> read signal1.sac signal2.sac
+    SAC> rotate
+
+
+Filtering
+---------
+
+
+.. code-block:: c
+
+    void bandpass(float *data, int n, float dt, float low, float high)
+    void lowpass(float *data, int n, float dt, float corner)
+    void highpass(float *data, int n, float dt, float corner)
+
+    void filter(int prototype,
+                int type,
+                float *data, int n, float dt,
+                float low, float high, int passes, int order,
+                float transition,
+                float attenuation)
+
+Filter data using a Butterworh filter with two pass, four pole filter.  Data is filtered using an Infinite Impulse Repsonse Filter.  For more detailed filter types use the generic `filter` function
+
+**Arguments**
+
+- `data` - Input and output data
+- `n` - Length of data
+- `dt` - Time sampling of the data (seconds)
+- `low` - low frequency corner
+- `high` - high frequency corner
+- `corner` - corner of the filter for `lowpass` or `highpass`
+
+- `passes` - Number of passes
+
+    - 1 - forward pass only
+    - 2 - forward and backward pass
+- `order` - Filter Order, not to exceed 10, 4-5 should be sufficient
+- `transition` - Transition Bandwidth, only used in Chebyshev Type I and II Filters
+- `attenuation` - Attenuation factor, amplitude reached at stopband edge, only used in Chebyshev Type I and II Filters
+- `prototype` - Filter Prototype
+
+   - 0 - Butterworth filter
+   - 1 - Bessel filter
+   - 2 - Chebyshev Type I filter
+   - 3 - Chebyshev Type II filter
+- `type` - Filter Type
+
+   - 0 - Bandpass
+   - 1 - Highpass
+   - 2 - Lowpass
+   - 3 - Bandreject
+
+**Examples**
+
+Bandpass filter in C
+
+.. code-block:: c
+
+    #define NMAX 2015
+    float y[NMAX], b, dt;
+    int n, nerr, nmax = NMAX;
+
+    // Read in the data file
+    rsac1("raw.sac", y, &n, &b, &dt, &nmax, &nerr, -1);
+
+    // bandpass filter from 0.10 Hz to 1.00 Hz
+    bandpass(y, n, dt, 0.10, 1.00);
+
+Highpass filter in Fortran
+
+.. code-block:: fortran
+
+    implicit none
+    integer nmax, n, nerr, sac_compare
+    real*4 :: y(2012), b, dt
+    nmax = 2012
+
+    ! Read in the data file
+    call rsac1("raw.sac", y, n, b, dt, nmax, nerr)
+
+    ! highpass filter at 10.0 Hz
+    call highpass(y, n, dt, 10.0)
+
+**Effective SAC Commands**
+
+.. code-block:: shell
+
+    SAC> read raw.sac
+    SAC> bp co 0.10 1.0 p 2 n 4
+
+    SAC> read raw.sac
+    SAC> hp co 10.0 p 2 n 4
+
+
+Cross Correlation
+-----------------
+
+.. code-block:: c
+
+    void correlate(float *f, int nf, float *g, int ng, float *c, int nc)
+
+Compute the cross-correlation of two signals
+
+**Arguments**
+
+- `f` - First time series
+- `nf` - Length of first time series
+- `g` - Second time series
+- `ng` - Length of second time series
+- `c` - Cross correlation time series
+- `nc` - Size of c, must be at least (nf + ng - 1)
+
+**Return:** Cross correlation function, length: nf + ng - 1
+
+If the signals are not the same length, then find the longest
+signal, make both signals that length by filling the remainder
+with zeros (pad at the end) and then run them through crscor
+
+**Examples**
+
+.. code-block: c
+
+    implicit none
+    character(len=*) filea, fileb
+    real*4 :: amp_max, t_max
+    real*4 :: a(1976), b(1976), ba,bb,dt,bc
+    real*4 :: c(10000)
+    integer :: nmax, nerr,na, nb, nc, i
+
+    ! Function Prototypes
+    real*4 correlate_time_begin
+    integer correlate_max
+
+    nmax = 1976
+
+    c(:) = 0.0
+
+    ! Read in files to correlate
+    call rsac1("file1.sac", a, na, ba, dt, nmax, nerr)
+    call rsac1("file2.saC", b, nb, bb, dt, nmax, nerr)
+
+    ! Compute length of correlation
+    nc = na + nb - 1
+
+    ! Correlate
+    call correlate(a, na, b, nb, c, nc)
+
+    ! Compute begin time of correlation
+    bc = correlate_time_begin(dt, na, nb, ba, bb)
+
+    ! Compute maximum value of correlation
+    i = correlate_max(c, nc)
+
+**Effective SAC Commands**
+
+.. code-block:: shell
+
+    SAC> read file1.sac file2.sac
+    SAC> correlate
+
+
+Cross Correlation Extras
+------------------------
+
+.. code-block:: c
+
+    int correlate_max(float *c, int nc)
+
+Find the maximum of a correlation
+
+**Arguments**
+
+- `c` - float array (returned from correlate function)
+- `nc` - length of c
+
+**Return:** Index of maximum value in array
+
+---------------------------------------------------
+
+.. code-block:: c
+
+    float correlate_time(float dt, float b, int i)
+
+Compute the time of a data point given dt and begin time
+
+**Arguments**
+
+- `dt` - Time sampling
+- `b` - Begin time
+- `i` - data sample
+
+**Return:** time value (b + i * dt)
+
+---------------------------------------------------
+
+.. code-block:: c
+
+    float * correlate_time_array(float dt, float b, int n)
+
+Compute a time array given dt and begin time
+
+**Arguments**
+
+- `dt` - Time sampling
+- `b` - Begin time
+- `n` - Length of data array
+
+**Return:** time array
+
+***************************************************
+
+.. code-block:: c
+
+    float correlate_time_begin(float dt, float n1, float _n2, float b1, float b2)
+
+Compute begin time from a corealtion of two time series
+
+**Arguments**
+
+- `dt` - Time sampling
+- `n1` - Length of first time series
+- `n2` - Length of second time series (unused)
+- `b1` - Begin time of first time series
+- `b2` - Begin time of second time series
+
+**Return:** `-dt * (n1 - 1) + (b2 - b1)`
+
+This accounts for the possible differences in begin times of two time series
+
+
+Envelope
+--------
+
+.. code-block:: c
+
+      void envelope(int n, float *in, float *out)
+
+Compute the envelope of a time series using the Hilbert transform
+
+**Arguments**
+
+- `n` - Length of input and output time series
+- `in` - Input time series
+- `out` - Output time series with envelope applied
+
+The envelope is applied as such where the H(x) is the Hilbert transform::
+
+      out = sqrt( H( in(t) )^2 + in(t)^2 )
+
+**Examples**
+
+.. code-block:: c
+
+    #define NMAX 1929
+    int nlen, nerr, nmax;
+    float yarray[NMAX], yenv[NMAX];
+    float beg, delta;
+
+    nmax = NMAX;
+
+    // Read in data file
+    rsac1("raw.sac", yarray, &nlen, &beg, &delta, &nmax, &nerr, SAC_STRING_LENGTH);
+
+    // Calculate Envelope of data
+    envelope(nlen, yarray, yenv);
+
+**Effective SAC Commands**
+
+.. code-block:: shell
+
+    SAC> read raw.sac
+    SAC> envelope
+
+
 Differentiate 2-pt
 ------------------
 
-Differentiate a data set using a two point differentiation::
+
+.. code-block:: c
 
      void dif2(float *array, int n, double step, float *output)
 
-- array - Input data to differentiate
-- n - length of ararry
-- step - Time sampling of input data 
-- output - Output differentiated data, length n-1
+Differentiate a data set using a two point differentiation
+
+**Arguments**
+
+- `array` - Input data to differentiate
+- `n` - length of ararry
+- `step` - Time sampling of input data 
+- `output` - Output differentiated data, length n-1
 
 This is the default scheme in the SAC program.
 
@@ -172,14 +589,19 @@ Differntiation is performed as::
 
 Differentiate 3-pt
 ------------------
-Perform "three-point" (centered two-point) differntiation::
+
+.. code-block:: c
 
      void dif3(float *array, int n, double step, float *output)
 
-- array - Input data to differentiate
-- n - length of ararry
-- step - Time sampling of input data 
-- output - Output differentiated data, length n-2
+Perform "three-point" (centered two-point) differntiation
+
+**Arguments**
+
+- `array` - Input data to differentiate
+- `n` - length of ararry
+- `step` - Time sampling of input data 
+- `output` - Output differentiated data, length n-2
 
 The output array will be 2 data points less than the input array.
 
@@ -193,14 +615,19 @@ Differntiation is performed as::
 
 Differentiate 5-pt
 ------------------
-Perform "fig-point" (centered four-point) differntiation::
+
+.. code-block:: c
 
      void dif3(float *array, int n, double step, float *output)
 
-- array - Input data to differentiate
-- n - length of ararry
-- step - Time sampling of input data 
-- output - Output differentiated data, length n-2
+Perform "five-point" (centered four-point) differntiation
+
+**Arguments**
+
+- `array` - Input data to differentiate
+- `n` - length of ararry
+- `step` - Time sampling of input data 
+- `output` - Output differentiated data, length n-2
 
 The output array will be 2 data points less than the input array.
 
@@ -221,13 +648,18 @@ Differentiation at the end points is::
 Integerate - Trapezodial
 ------------------------
 
-Integrate a data series using the trapezodial method::
+
+.. code-block:: c
 
     void int_trap(float *y, int n, double delta)
 
-- y - Input data series, overwritten on output
-- n - length of y
-- delta - time sampling of the data series
+Integrate a data series using the trapezodial method
+
+**Arguments**
+
+- `y` - Input data series, overwritten on output
+- `n` - length of y
+- `delta` - time sampling of the data series
 
 Integration is performed as::
 
@@ -246,13 +678,18 @@ and the beging value is shifted by -0.5 delta::
 Integerate - Rectangular
 ------------------------
 
-Integrate a data series using the rectangular method::
+
+.. code-block:: c
 
     void int_rect(float *y, int n, double delta)
 
-- y - Input data series, overwritten on output
-- n - length of y
-- delta - time sampling of the data series
+Integrate a data series using the rectangular method
+
+**Arguments**
+
+- `y` - Input data series, overwritten on output
+- `n` - length of y
+- `delta` - time sampling of the data series
 
 Integration is performed as::
 
@@ -267,126 +704,53 @@ The number of points and b value are left unchanged here::
     len(out) = len(in)
     b_out    = b_in
 
-Filtering
----------
-
-Filter data using a Infinite Impulse Response Filter::
-
-      void
-      xapiir(float *data, int nsamps, char *aproto, double trbndw, double a,
-             int iord, char *type, double flo, double fhi, double ts, int passes)
-
-
-- data - input time series to be filtered, overwritten on output
-- nsamps - length of data
-- aproto - Filter Prototype
-   - "BU" - Butterworth filter
-   - "BU" - Bessel filter
-   - "BU" - Chebyshev Type I filter
-   - "BU" - Chebyshev Type II filter
-- trbndw - Transition Bandwidth, only used in Chebyshev Type I and II
-           Filters
-- a - Attenuation factor, amplitude reached at stopband edge, only
-  used in Chebyshev Type I and II Filters
-- iord - Filter Order, not to exceed 10, 4-5 should be sufficient
-- type - Filter Type
-   - "LP" - Lowpass
-   - "HP" - Highpass
-   - "BP" - Bandpass
-   - "BR" - Bandreject
-- flo - Low frequency cutoff, not used in Lowpass filters
-- fhi - High frequneyc cutoff, not used in Highpass filters
-- ts - Sampling rate (seconds)
-- passes - Number of filter passes
-   - 1 - Forward filter
-   - 2 - Forward and Reverse filtering, i.e. zero-phase filtering
-
-Cross Correlation
------------------
-
-Compute the cross-correlation of two signals::
-
-       void
-       crscor(float *data1, float *data2, int nsamps, int nwin, int wlen, char *type,
-              float *c, int *nfft, char *err, int err_s)
-
-- data1 - first signal
-- data2 - second signal
-- nsamps - length of longest signal
-- nwin - number of windows
-- wlen -number of samples in each window; max 2048
-- type - type of window
-   - HAM Hamming window
-   - HAN Hanning window
-   - R - Rectangular window
-   - C - 10% cosine taper window
-   - T - Triangular window
-- c - output cross correlation coefficients, length 2*wlen - 1
-- nfft - number of sample in correlation signal
-- err - Error messages
-- err_s - Length of message err
-
-Each window is processed as follows and summed into C::
-
-       scale_i = rms(data_i)
-       Data1 = FFT(window(data1) / scale)
-       Data2 = FFT(window(data2) / scale)
-       C = C + (conjg(Data1) x Data2)
-
-Then transformed back to the time domain::
-
-       c = iFFT(C)
-
-
-Envelope
---------
-
-Compute the envelope of a time series using the Hilbert transform::
-
-      void envelope(int n, float *in, float *out)
-
-- n - Length of input and output time series
-- in - Input time series
-- out - Output time series with envelope applied
-
-The envelope is applied as such where the H(x) is the Hilbert transform::
-
-      out = sq rt( H( in(t) )^2 + in(t)^2 )
 
 RMS
 ---
 
-Compute Root Mean Square value of an array::
+.. code-block:: c
 
       double rms(float *x, int nsamps)
 
-- x - input array to find the rms value
-- nsamps - length of input array
+Compute Root Mean Square value of an array
+
+**Arguments**
+
+- `x` - input array to find the rms value
+- `nsamps` - length of input array
 
 RMS value is computed as such::
 
-      rms = sum (x_i^2)
+      rms = sqrt( sum (x_i^2) )
+
+**Note** This routine does not divide by the number of points
 
 Window
 ------
 
-Window a sequence::
+.. code-block:: c
 
-      void window(float x, int n, char *ftype, int fsamp, int wlen, float *y, char *err, int err_s)
+      void window(float x, int n, char *ftype, int fsamp,
+                  int wlen, float *y, char *err, int err_s)
 
-- x - input array
-- n - length of input array
-- ftype - type of window to apply
-    - HAM Hamming window
-    - HAN Hanning window
-    - R - Rectangular window
-    - C - 10% cosine taper window
-    - T - Triangular window
-- fsamp - index of first sample of the window
-- wlen - window length in samples
-- y - output, windowed sample
-- err - error condition message
-- err_s - length of message err
+Window a sequence
+
+**Arguments**
+
+- `x` - input array
+- `n` - length of input array
+- `ftype` - type of window to apply
+
+    - `HAM` Hamming window
+    - `HAN` Hanning window
+    - `R` - Rectangular window
+    - `C` - 10% cosine taper window
+    - `T` - Triangular window
+- `fsamp` - index of first sample of the window
+- `wlen` - window length in samples
+- `y` - output, windowed sample
+- `err` - error condition message
+- `err_s` - length of message err
 
 For all window types::
 
@@ -423,468 +787,3 @@ For all window types::
       else
          y_i = x_i
 
-Internal Subroutines
-====================
-
-These functions/subroutines should not be called by the user. Use at your own risk.
-
-- fft - Compute the Fast Fourier Transform
-
-- firtrn - FIR Filter
-- overlap - Overlap Save Routine
-- zshft - Shfit a signal with zero-filling
-- zero - Multiply a singal by 0.0
-- copydouble - Copy a singal from one array to another
-- copyfloat - Copy a signal from one array to another
-- next2 - Find a power of 2 greater than an integer
-
-- apply - Apply a IIR Digital filter to a signal (in-place)
-- design - Design IIR Digital filter from Analog Prototype
-- bilin2 - Convert Analog Filter to a Digital Filter using Bilinear Transform
-- warp - Tangent frequency warping to account for Bilinear Transformation
-- cutoffs - Alter cutoffs of a Analog Filter
-- Analog Filter Transformations
-    - lp
-    - lptbp
-    - lptbr
-    - lpthp
-- Analog Filter Prototypes
-    - chebparm
-    - buroots
-    - beroots
-    - c1roots
-    - c2roots
-
-
-FIR Filter
-----------
-
-Calculate Hilbert or derivative of a signal with a FIR Filter::
-
-      void firtrn(char *ftype, float *x, int n, float *buffer, float *y)
-
-- ftype - Desired Transform
-     - HILBERT
-     - DERIVATIVE of Hilbert Transform
-- x - input signal
-- n - length of input signal
-- buffer - temp storage, min size of 4297
-- y - output array
-
-Hilbert transform coefficients::
-
-      C_i = (2.0/pi*(2*i-1)) * (0.54 + 0.46 *cos( 2 * pi * ( 2*i - 1 ) / 201
-
-Overlap
--------
-
-Overlap - save routine::
-
-      void overlp(float *input, int npts, float *output, float *c, int nc, int nfft, float *buffer, float *cbuff)
-
-- input - input signal
-- npts - length of input signal
-- output - filtered output, may be the same as input
-- c - coefficent sequence of filter
-- nc - length of coeffience sequence
-- nfft - lenght of FFT in convolutions
-- buffer - temp storage - must be 2 * nfft
-- cbuff - temp storage - must be 2 * nfft
-
-Shift and Filling
------------------
-
-Shift a signal in place with zero-filling::
-
-      void zshft(float *signal, int n, in ishft)
-
-- signal - input signal to be shifted
-- n - length of signal
-- ishft - number of samples to shift
-   - > 0 shift to the right
-   - < 0 shift to the left
-
-zero
-----
-
-Multiply (or set) a signal to 0.0::
-
-      void zero(float *a, int n)
-
-- a - signal to set to 0.0
-- n - length of signal
-
-FFT
----
-
-Compute Fast Fourier transform of a sequence::
-
-       void fft(float *xreal, float *ximag, int n, int idir)
-
-- xreal - Real part of signal
-- ximag - Imaginary part of signal
-- n - length of signal xreal and ximag
-        signal must be a power of 2
-- idir - Direction of tranform
-    - -1 Forward
-    -  1 Inverse transform (normalization performed)
-
-Copy Double Array
------------------
-
-Copy a double precision floating point array::
-
-      void copydouble(double *source, int length, double *sink)
-
-- source - input array
-- length - length of input and output array
-- sink - output array
-
-Copy Float Array
-----------------
-
-Copy a single precision floating point array::
-
-      void copyfloat(float *src, float *dest, int n)
-
-- src - input array
-- dest - output array
-- n - length of input and output array
-
-Next Power of Two
------------------
-
-Find the next power of 2 greater than number::
-
-      int next2(int num)
-
-- num - Number to find the next power of 2 greater than
-
-IIR - Apply Filter
-------------------
-
-This is not what you want, please see xapiir()
-
-Apply an IIR (Infinite Impulse Response) Filter to a data sequence.  The filter is assumed to be stored as second
-order sections.  The filtering is done in place.  Zero-phase (forward plus reverse filtering) is an option::
-
-   void apply(float *data, int nsamps, int zp, float *sn, float *sd, int nsects)
-
-- data - Array containing data on input and filtered data on output
-- nsamps - Length of array  data
-- zp - If Zero Phase filtering is requested
-   - TRUE Zero phase Two pass filtering (forward + reverse filters)
-   - FALSE Single Pass filtering
-- sn - Numerator polynomials for 2nd Order Sections
-- sd - Denominator polynomials for 2nd Order Sections
-- nsects - Number of 2nd Order Sections
-
-
-The filter is applied as such::
-
-       y_n = b[0] * x[n]   + b[1] * x[n-1] + b[2] * x[n-2] -
-                             a[1] * y[n-1] + b[2] * y[n-2]
-       where
-         - N = nsamps
-         - b = sn
-         - a = sd
-
-
-IIR - Design a Filter
----------------------
-
-Design IIR Digital Filters from Analog Prototypes::
-
-    void design(int iord, char *type, char *aproto, double a, double trbndw, double fl,
-                double fh, double ts, float *sn, float *sd, int *nsects) {
-
-- iord - Filter Order, Maximum of 10
-- type - Filter Type
-     - 'LP'  Lowpass
-     - 'HP'  Highpass
-     - 'BP'  Bandpass
-     - 'BR'  Bandreject
-- aproto - Analog Prototype
-     - 'BU'  Butterworth
-     - 'BE'  Bessel
-     - 'C1'  Cheyshev Type I
-     - 'C2'  Cheyshev Type II
-- a -  Chebyshev stopband Attenuation Factor
-- trbndw -  Chebyshev transition bandwidth, fraction of lowpass prototype passband width
-- fl - Low Frequency cutoff
-- fh - High Frequency cutoff
-- ts - Sampling Rate / Delta
-- sn - Array containing numerator coefficients of 2nd Order Sections, Packed Head to Tail
-- sd - Array containing denominator coefficients of 2nd Order Sections, Packed Head to Tail
-- nsects -  Length of arrays  sn and  sd
-
-
-
-IIR - Convert lp to lp
-----------------------
-
-Subroutine to generate second order section parameterization from an pole-zero description for lowpass filters::
-
-    void lp(complexfp, complexfz, char *rtype, int rtype_s, double dcvalue,
-            int nsects, float *sn, float *sd) {
-
-
-- p - Array of Poles
-- z - Array of Zeros
-- rtype - Character array containing root type information
-     - "SP"  Single real pole
-     - "CP"  Complex conjugate pole pair
-     - "CPZ" Complex conjugate pole and zero pairs
-- rtype_s - Length of  rtype
-- dcvalue - Zero-frequency value of prototype filter
-- nsects - Number of second-order sections
-- sn - Output Numerator polynomials for second order sections.
-- sd - Output Denominator polynomials for second order sections.
-
-
-
-IIR - Convert lp to bp
-----------------------
-
-Subroutine to convert an prototype lowpass filter to a bandpass filter via the analog polynomial transformation.
-The lowpass filter is described in terms of its poles and zeros (as input to this routine).  The output consists
-of the parameters for second order sections.::
-
-
-    void lptbp(complexfp, complexfz, char *rtype, int rtype_s, double dcvalue,
-               int *nsects, double fl, double fh, float *sn, float *sd)
-
-- p - Array of Poles
-- z - Array of Zeros
-- rtype - Character array containing root type information
-     - "SP"  Single real pole
-     - "CP"  Complex conjugate pole pair
-     - "CPZ" Complex conjugate pole and zero pairs
-- rtype_s - Length of rtype
-- dcvalue - Zero-frequency value of prototype filter
-- nsects - Number of second-order sections.
-    On output this subroutine doubles the number of
-    sections.
-- fl - Low Frequency cutoff
-- fh - High Frequency cutoff
-- sn - Output Numerator polynomials for second order sections.
-- sd - Output Denominator polynomials for second order sections.
-
-
-
-IIR - Convert lp to br
-----------------------
-
- Subroutine to convert a lowpass filter to a band reject filter via an analog polynomial transformation.
- The lowpass filter is described in terms of its poles and zeros (as input to this routine).  The output
- consists of the parameters for second order sections.::
-
-   void  lptbr(complexfp, complexfz, char *rtype, int rtype_s, double dcvalue,
-              int *nsects, double fl, double fh, float *sn, float *sd)
-
-
-- p - Array of Poles
-- z - Array of Zeros
-- rtype - Character array containing root type information
-     - "SP"  Single real pole
-     - "CP"  Complex conjugate pole pair
-     - "CPZ" Complex conjugate pole and zero pairs
-- rtype_s - Length of rtype
-- dcvalue - Zero-frequency value of prototype filter
-- nsects - Number of second-order sections.
-    On output this subroutine doubles the number of
-    sections.
-- fl - Low Frequency cutoff
-- fh - High Frequency cutoff
-- sn - Output Numerator polynomials for second order sections.
-- sd - Output Denominator polynomials for second order sections.
-
-
-IIR - Convert lp to hp
-----------------------
-
-Subroutine to convert a lowpass filter to a highpass filter via an analog polynomial transformation.  The lowpass filter is
-described in terms of its poles and zeroes (as input to this routine).  The output consists of the parameters for
-second order sections::
-
-    void lpthp(complexfp, complexfz, char *rtype, int rtype_s, double dcvalue,
-               int nsects, float *sn, float *sd)
-
-- p - Array of Poles
-- z -  Array of Zeros
-- rtype - Character array containing root type information
-     - "SP"  Single real pole
-     - "CP"  Complex conjugate pole pair
-     - "CPZ" Complex conjugate pole and zero pairs
-- rtype_s - Length of rtype
-- dcvalue -  Zero-frequency value of prototype filter
-- nsects - Number of second-order sections.
-- sn - Output Numerator polynomials for second order sections.
-- sd - Output Denominator polynomials for second order sections.
-
-
-
-
-IIR - Frequency warping
------------------------
-
-Applies tangent frequency warping to compensate for bilinear analog -> digital transformation::
-
-  double warp(double f, double ts)
-
-- f - Original Design Frequency Specification (Hz)
-- ts -  Sampling Internal (seconds)
-
-IIR - Alter Filter Cutoffs
---------------------------
-
-Alter the cutoff of a filter.  Assumed that the filter is structured as 2nd order sections.
-Changes the cutoffs of a normalized lowpass or highpass filters through a simple polynomial transformation::
-
-    void cutoffs(float *sn, float *sd, int nsects, double f)
-
-- sn - Numerator polynomials for 2nd order sections
-- sd - Denominator polynomials for 2nd order sections
-- nsects - Number of 2nd order sections
-- f - New cutoff frequency
-
-
-IIR - Calculates Chebparm
--------------------------
-
-Calculate Chebyshev Type I and II Design Parameters::
-
-   void chebparm(double a, double trbndw, int iord, float *eps, float *ripple)
-
-- a - Desired Stopband Attenuation, i.e. max stopband amplitude is 1/ATTEN
-- trbndw - Transition bandwidth between stop and passband as a fraction of the passband width
-- iord - Filter Order (number of Poles)
-- eps - Output Chebyshev passband parameter
-- ripple - Passband ripple
-
-Chebyshev parameters are calculated as::
-
-  omega = 1.0 + trbndw
-  alpha = (omega + sqrt(omega^2 - 1.0) )^iord
-  g = alpha^2 + 1 / 2alpha
-  eps = sqrt(a^2 - 1.0) / g
-  ripple = 1 / sqrt(1.0 + eps^2)
-
-IIR - Calculate Butterworth Poles
-----------------------------------
-Compute the Butterworth Poles for a Normalized Low Pass (LP) Filter::
-
-    void bu roots(complexfp, char *rtype, int rtype_s, float *dcvalue, int *nsects, int iord)
-
-- p - Complex Array containing Poles. Contains only one of from each
-    - Complex Conjugate Pole-Zero Pair
-    - Complex Conjugate Pole Pair
-    - Single Real Pole
-- rtype - Character Array indicating 2nd Order Section Types
-    - 'CPZ' Complex Conjugate Pole-Zero Pair
-    - 'CP'  Complex Conjugate Pole Pair
-    - 'SP'  Single Real Pole
-- rtype_s - Length of string rtype
-- dcvalue - Magnitude of the filter at Zero Frequency
-- nsects - Number of 2nd Order Sections
-- iord - Desired Filter Order, Must be between 1 and 8
-
-
-IIR - Calculate Bessel Poles
-----------------------------
-
-Compute Bessel Poles For a Normalized Low Pass (LP) Filter::
-
-    void beroots(complexfp, char *rtype, int rtype_s, float *dcvalue, int *nsects,
-                 int iord)
-
-
-- p - Complex Array containing Poles. Contains only one of from each
-    - Complex Conjugate Pole-Zero Pair
-    - Complex Conjugate Pole Pair
-    - Single Real Pole
-- rtype - Character Array indicating 2nd Order Section Types
-    - 'CPZ' Complex Conjugate Pole-Zero Pair
-    - 'CP'  Complex Conjugate Pole Pair
-    - 'SP'  Single Real Pole
-- rtype_s - Length of string rtype
-- dcvalue - Magnitude of the filter at Zero Frequency
-- nsects - Number of 2nd Order Sections
-- iord - Desired Filter Order, Must be between 1 and 8
-
-
-
-IIR - Calculate Chebyshev Type I Roots
---------------------------------------
-
-Compute Chebyshev Type I Poles for a Normalized Low Pass (LP) Filter::
-
-   void c1roots(complexfp, char *rtype, int rtype_s, float *dcvalue, int *nsects,
-               int iord, double eps)
-
-
-- p - Complex Array containing Poles. Contains only one of from each
-    - Complex Conjugate Pole-Zero Pair
-    - Complex Conjugate Pole Pair
-    - Single Real Pole
-- rtype - Character Array indicating 2nd Order Section Types
-    - 'CPZ' Complex Conjugate Pole-Zero Pair
-    - 'CP'  Complex Conjugate Pole Pair
-    - 'SP'  Single Real Pole
-- rtype_s - Length of string rtype
-- dcvalue - Magnitude of the filter at Zero Frequency
-- nsects - Number of 2nd Order Sections
-- iord -  Desired Filter Order, Must be between 1 and 8
-- eps - Output Chebyshev Parameter Related to Passband Ripple
-
-IIR - Calculate Chebyshev Type II Roots
----------------------------------------
-
-Compute root for normailzed Low Pass Chebyshev Type II Filter::
-
-    void c2roots(complexfp, complexfz, char *rtype, int rtype_s, float *dcvalue,
-                int *nsects, int iord, double a, double omegar)
-
-- p - Complex Array containing Poles. Contains only one of from each
-     - Complex Conjugate Pole-Zero Pair
-     - Complex Conjugate Pole Pair
-     - Single Real Pole
-- z - Complex Array containing Zeros Contains only one of from each
-     - Complex Conjugate Pole-Zero Pair
-     - Complex Conjugate Pole Pair
-     - Single Real Pole
-- rtype - Character Array indicating 2nd Order Section Types
-     - 'CPZ' Complex Conjugate Pole-Zero Pair
-     - 'CP'  Complex Conjugate Pole Pair
-     - 'SP'  Single Real Pole
-- rtype_s - Length of string rtype
-- dcvalue - Magnitude of filter at Zero Frequency
-- nsects - Number of 2nd order sections
-- iord - Input Desired Filter Order
-- a - Input Stopband attenuation factor
-- omegar - Input Cutoff frequency of stopband passband cutoff is 1.0 Hz
-
-
-IIR - Bilinear Transform
-------------------------
-
-Transform an analog filter to a digital filter via the bilinear transformation.
-Assumes both filters are stored as 2nd Order sections and the transform is done in place::
-
-   void bilin2(float *sn, float *sd, int nsects)
-
-- sn -  Array containing numerator polynomial coefficeients. Packed head to tail and using groups of 3.  Length is 3nsects
-- sd -  Array containing demoninator polynomial coefficeients. Packed head to tail and using groups of 3.  Length is 3nsects
-- nsects -  Number of 2nd order sections.
-
-The bilinear transform for each 2nd order section is apply as such ::
-
-   scale = a0 + a1 + a2
-
-   a_0 = 1.0
-   a_1 = 2.0(a_0 - a_2) / scale
-   a_2 = (a_2 - a_1 + a_0) / scale
-
-   b_0 = (b_2 + b_1 + b_0) / scale
-   b_1 = 2.0(b_0 - b_2) / scale
-   b_2 = (b_2 - b_1 + b_0) / scale
