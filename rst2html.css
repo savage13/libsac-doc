@@ -176,9 +176,10 @@ cite {
 	  //font-style: normal;
     font-family: monospace;
     white-space: pre;
-    border: 0.5px solid #cccccc;
+    border: 0.0px solid #cccccc;
+    border-bottom: 0.5px solid #cccccc;
     padding: 2px;
-    background: #eeeeee;
+    background: #f3f3f3
 }
 
 h1,
@@ -910,7 +911,6 @@ pre.code .literal.string, code .literal.string {
 pre.code .name.builtin, code .name.builtin {
 	  color: #352B84;
 }
-
 
 pre.code .deleted, code .deleted {
 	background-color: #DEB0A1;

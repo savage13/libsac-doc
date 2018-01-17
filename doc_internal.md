@@ -4,6 +4,179 @@ Internal Subroutines
 **These functions/subroutines should probably not be called by the user. Use at your own risk.**
 
 
+Differentiate 3-pt
+------------------
+
+.. code-block:: c
+
+     void dif3(float *array, int n, double step, float *output)
+
+Perform "three-point" (centered two-point) differntiation
+
+**Arguments**
+
+- `array` - Input data to differentiate
+- `n` - length of ararry
+- `step` - Time sampling of input data 
+- `output` - Output differentiated data, length n-2
+
+The output array will be 2 data points less than the input array.
+
+There is an implied shift in the time variable by a full step size::
+
+    b_new = b_old + step
+
+Differntiation is performed as::
+
+    out[i] = 1/(2 * step) * (in[i+1] - in[i-1])
+
+Differentiate 5-pt
+------------------
+
+.. code-block:: c
+
+     void dif3(float *array, int n, double step, float *output)
+
+Perform "five-point" (centered four-point) differntiation
+
+**Arguments**
+
+- `array` - Input data to differentiate
+- `n` - length of ararry
+- `step` - Time sampling of input data 
+- `output` - Output differentiated data, length n-2
+
+The output array will be 2 data points less than the input array.
+
+There is an implied shift in the time variable by a full step size::
+
+    b_new = b_old + step
+
+Differntiation is performed in the interior as ::
+
+    out[i] = 2/(3  * step) * (in[i+1] - in[i-1]) -
+             1/(12 * step) * (in[i+2] - in[i-2])
+
+Differentiation at the end points is::
+
+    out[1]   = (in[3] -   in[i]) / (2 * step)
+    out[n-2] = (in[n] - in[n-2]) / (2 * step)
+
+
+Integerate - Rectangular
+------------------------
+
+.. code-block:: c
+
+    void int_rect(float *y, int n, double delta)
+
+Integrate a data series using the rectangular method
+
+**Arguments**
+
+- `y` - Input data series, overwritten on output
+- `n` - length of y
+- `delta` - time sampling of the data series
+
+Integration is performed as::
+
+    out[i] = (delta * in[i]) + out[i-1]
+
+and the initial value is::
+
+    out[0] = in[0] * delta
+
+The number of points and b value are left unchanged here::
+
+    len(out) = len(in)
+    b_out    = b_in
+
+
+RMS
+---
+
+.. code-block:: c
+
+      double rms(float *x, int nsamps)
+
+Compute Root Mean Square value of an array
+
+**Arguments**
+
+- `x` - input array to find the rms value
+- `nsamps` - length of input array
+
+RMS value is computed as such::
+
+      rms = sqrt( sum (x_i^2) )
+
+**Note** This routine does not divide by the number of points
+
+
+Window
+------
+
+.. code-block:: c
+
+      void window(float x, int n, char *ftype, int fsamp,
+                  int wlen, float *y, char *err, int err_s)
+
+Window a sequence
+
+**Arguments**
+
+- `x` - input array
+- `n` - length of input array
+- `ftype` - type of window to apply
+
+    - `HAM` Hamming window
+    - `HAN` Hanning window
+    - `R` - Rectangular window
+    - `C` - 10% cosine taper window
+    - `T` - Triangular window
+- `fsamp` - index of first sample of the window
+- `wlen` - window length in samples
+- `y` - output, windowed sample
+- `err` - error condition message
+- `err_s` - length of message err
+
+For all window types::
+
+      y_i = 0    if i < fsamp or i > fsamp + wlen - 1
+
+- Rectangular window::
+
+      y = x_i
+
+- Triangular window::
+
+      y = x_i * (1 - abs(i - center) / extent)
+      center = (wlen - 1)/2 + fsamp
+      extent = center - fsamp
+
+-  Hamming window::
+
+      y_i = x_i * (f0 + f1 * cos(omega * (i-fsamp) - pi)
+      f0 = 0.54
+      f1 = 0.46
+
+- Hanning window::
+
+      y_i = x_i * (f0 + f1 * cos(omega * (i-fsamp) - pi)
+      f0 = 0.5
+      f1 = 0.5
+
+-  Cosine window::
+
+      if i < fsamp + wlen/10
+         y_i = x_i * 0.5 * (1.0 - cos( pi * (i-fsamp) )
+      if i > fsamp - wlen/10
+         y_i = x_i * 0.5 * (1.0 - cos( pi * (fsamp + wlen - 1 - i) )
+      else
+         y_i = x_i
+
+
+
 Instrument Deconvolution (Internal)
 -----------------------------------
 

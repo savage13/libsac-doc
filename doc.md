@@ -31,10 +31,10 @@ Instrument Removal / Deconvolution
 
     // Remove SAC_PZ Polezero Response
     int remove_polezero(float *data, int n, float dt, double limits[4],
-                        char *id, char *when, char *pzfile);
+                        char *id, char *when, char *pzfile)
 
     // Remove SAC_PZ Polezero Response
-    int remove_polezero_simple(float *data, int n, float dt, double limits[4]);
+    int remove_polezero_simple(float *data, int n, float dt, double limits[4])
 
 Remove an evalresp or polezero specified instrument response.  Best to use the `simple` versions unless extra information is required.  `remove_evalresp_simple` and `remove_polezero_simple` will attempt to find the appropriate response file within the same directory before removing.  `remove_evalresp` and `remove_polezero` requires the specification of a response file.
 
@@ -45,7 +45,7 @@ Remove an evalresp or polezero specified instrument response.  Best to use the `
 - `dt` - Sampling interval (seconds)
 - `limits` - Frequency range over which response is removed (Hz)
    
-   - `limits[4] = { 0.002, 0.005, 12.0, 20.0 };`
+   - `limits[4] = { 0.002, 0.005, 12.0, 20.0 }`
    - limits[0] - Low  Frequency Edge (Response = 0)
    - limits[1] - Low  Frequency Edge (Response = 1)
    - limits[2] - High Frequency Edge (Response = 1)
@@ -105,7 +105,7 @@ Remove Mean
 
 .. code-block:: c
 
-    void  remove_mean(float *data, int n)
+    void remove_mean (float *data, int n)
 
 Remove the mean of a data series.  The mean of the data series is automatically calculated and removed from the data series. 
 
@@ -557,13 +557,13 @@ The envelope is applied as such where the H(x) is the Hilbert transform::
     SAC> envelope
 
 
-Differentiate 2-pt
-------------------
+Differentiate
+-------------
 
 
 .. code-block:: c
 
-     void dif2(float *array, int n, double step, float *output)
+     void dif2(float *array, int n, double delta, float *output)
 
 Differentiate a data set using a two point differentiation
 
@@ -571,7 +571,7 @@ Differentiate a data set using a two point differentiation
 
 - `array` - Input data to differentiate
 - `n` - length of ararry
-- `step` - Time sampling of input data 
+- `delta` - Time sampling of input data 
 - `output` - Output differentiated data, length n-1
 
 This is the default scheme in the SAC program.
@@ -579,75 +579,42 @@ This is the default scheme in the SAC program.
 The output array will be 1 data point less than the input array.
 
 Since this is not a centered differeniation, there is an implied shift
-in the independent variable by half the step size::
+in the independent variable by half the delta::
 
-    b_new = b_old + 0.5 * step
-
-Differntiation is performed as::
-
-    out[i] = (1/step) * (in[i+1] - in[i])
-
-Differentiate 3-pt
-------------------
-
-.. code-block:: c
-
-     void dif3(float *array, int n, double step, float *output)
-
-Perform "three-point" (centered two-point) differntiation
-
-**Arguments**
-
-- `array` - Input data to differentiate
-- `n` - length of ararry
-- `step` - Time sampling of input data 
-- `output` - Output differentiated data, length n-2
-
-The output array will be 2 data points less than the input array.
-
-There is an implied shift in the time variable by a full step size::
-
-    b_new = b_old + step
+    b_new = b_old + 0.5 * delta
 
 Differntiation is performed as::
 
-    out[i] = 1/(2 * step) * (in[i+1] - in[i-1])
+    out[i] = (1/delta) * (in[i+1] - in[i])
 
-Differentiate 5-pt
-------------------
+**Examples**
 
-.. code-block:: c
+.. code-block:: fortran
 
-     void dif3(float *array, int n, double step, float *output)
+    integer,parameter :: nmax = 1000000
+    integer :: npts, nerr
+    real*4 :: data(nmax), out(nmax)
+    real*4 :: beg, dt
 
-Perform "five-point" (centered four-point) differntiation
+    ! Read in the data file
+    call rsac1("raw.sac", data, npts, beg, dt, nmax, nerr)
 
-**Arguments**
+    ! Differentiate the data
+    call dif2(data, npts, dble(dt), out)
 
-- `array` - Input data to differentiate
-- `n` - length of ararry
-- `step` - Time sampling of input data 
-- `output` - Output differentiated data, length n-2
+    bnew = beg + 0.5 * delta
+    npts_new = npts - 1
 
-The output array will be 2 data points less than the input array.
+**Effective SAC Commands**
 
-There is an implied shift in the time variable by a full step size::
+.. code-block:: shell
 
-    b_new = b_old + step
+    SAC> read raw.sac
+    SAC> dif
 
-Differntiation is performed in the interior as ::
 
-    out[i] = 2/(3  * step) * (in[i+1] - in[i-1]) -
-             1/(12 * step) * (in[i+2] - in[i-2])
-
-Differentiation at the end points is::
-
-    out[1]   = (in[3] -   in[i]) / (2 * step)
-    out[n-2] = (in[n] - in[n-2]) / (2 * step)
-
-Integerate - Trapezodial
-------------------------
-
+Integerate
+----------
 
 .. code-block:: c
 
@@ -671,119 +638,190 @@ The number of points on output should be reduced by 1 ::
 
      len(out) = len(in) - 1
 
-and the beging value is shifted by -0.5 delta::
+and the beging value is shifted by 0.5 delta::
 
-     b_out = b_in - 0.5 * delta
+     b_out = b_in + 0.5 * delta
 
-Integerate - Rectangular
-------------------------
-
+**Examples**
 
 .. code-block:: c
 
-    void int_rect(float *y, int n, double delta)
+    #define NMAX 2012
+    float y[NMAX], b, dt;
+    int n, nerr, nmax = NMAX;
 
-Integrate a data series using the rectangular method
+    rsac1("raw.sac", y, &n, &b, &dt, &nmax, &nerr, -1);
 
-**Arguments**
-
-- `y` - Input data series, overwritten on output
-- `n` - length of y
-- `delta` - time sampling of the data series
-
-Integration is performed as::
-
-    out[i] = (delta * in[i]) + out[i-1]
-
-and the initial value is::
-
-    out[0] = in[0] * delta
-
-The number of points and b value are left unchanged here::
-
-    len(out) = len(in)
-    b_out    = b_in
+    int_trap(y, n, (double)dt);
 
 
-RMS
----
+**Effective SAC Commands**
+
+.. code-block:: shell
+
+    SAC> read raw.sac
+    SAC> int
+
+Taper
+-----
 
 .. code-block:: c
 
-      double rms(float *x, int nsamps)
+    // Taper using points
+    void taper_points(float *data, int n, int taper_type, int ipts)
+    void taper(float *data, int n, int taper_type, int ipts)
 
-Compute Root Mean Square value of an array
+    // Taper using a duration in seconds
+    void taper_seconds(float *data, int n, int taper_type, float sec, float delta)
+
+    // Taper using a percent of the data
+    void taper_width(float *data, int n, int taper_type, float width)
 
 **Arguments**
 
-- `x` - input array to find the rms value
-- `nsamps` - length of input array
+- `data` - Input data series, overwritten on output
+- `n` - Length of data
+- `taper_type` - Type of Taper
 
-RMS value is computed as such::
+   - 1 - Cosine - SAC_TAPER_COSINE
+   - 2 - Hanning - SAC_TAPER_HANNING
+   - 3 - Hamming - SAC_TAPER_HAMMING
+- `ipts` - Points to use in the taper
+- `sec` - Duration of the taper in seconds
+- `delta` - Delta of the data 
+- `width` - Percent of the data to taper
 
-      rms = sqrt( sum (x_i^2) )
-
-**Note** This routine does not divide by the number of points
-
-Window
-------
+**Examples**
 
 .. code-block:: c
 
-      void window(float x, int n, char *ftype, int fsamp,
-                  int wlen, float *y, char *err, int err_s)
+    #define MAX 1984
+    float data[MAX];
+    int nmax, npts, nerr, taper_type;
+    float beg, dt, width;
 
-Window a sequence
+    nmax = MAX;
+
+    // Read in the data file
+    rsac1("raw.sac", data, &npts, &beg, &dt, &nmax, &nerr, -1);
+
+    // Set up taper parameters
+    width = 0.05;    // Width to taper original data
+    taper_type = 2;  // HANNING taper
+
+    taper_width(data, npts, taper_type, width);
+
+**Effective SAC Commands**
+
+.. code-block:: shell
+
+    SAC> read raw.sac
+    SAC> taper
+
+
+Cut Data
+--------
+
+.. code-block:: c
+
+     void cut(float *y, int npts, float b, float dt,
+              float begin_cut, float end_cut, int cuterr,
+              float *out, int *nout)
+
+Cut a time series data using a begin and end time
 
 **Arguments**
 
-- `x` - input array
-- `n` - length of input array
-- `ftype` - type of window to apply
+- `y` - Input data to be cut
+- `npts` - Length of y
+- `b` - Begin time of data
+- `dt` - time sampling (seconds)
+- `begin_cut` - Start time of cut
+- `end_cut` - End time of cut
+- `cuterr` - 
 
-    - `HAM` Hamming window
-    - `HAN` Hanning window
-    - `R` - Rectangular window
-    - `C` - 10% cosine taper window
-    - `T` - Triangular window
-- `fsamp` - index of first sample of the window
-- `wlen` - window length in samples
-- `y` - output, windowed sample
-- `err` - error condition message
-- `err_s` - length of message err
+   - 1 - Fatal - SAC_CUT_FATAL
+   - 2 - Use B and E Values - SAC_CUT_USEBE
+   - 3 - Fill with Zeros - SAC_CUT_FILLZ
 
-For all window types::
+- `out` - Cut data on output
+- `nout` - Length of out
 
-      y_i = 0    if i < fsamp or i > fsamp + wlen - 1
+**Examples**
 
-- Rectangular window::
+.. code-block:: fortran
 
-      y = x_i
+   integer,parameter :: nmax = 1776
+   real*4 :: y(nmax), out(nmax), b, dt, cutb, cute
+   integer :: nerr, n, nout
 
-- Triangular window::
+   max = nmax
+   ! Read in data
+   call rsac1("raw.sac", y, n, b, dt, max, nerr)
 
-      y = x_i * (1 - abs(i - center) / extent)
-      center = (wlen - 1)/2 + fsamp
-      extent = center - fsamp
+   nout = max
+   cutb = 10.0
+   cute = 15.0
+   ! Cut data from 10 to 15 or from B to E if window is too big
+   call cut(y, n, b, dt, cutb, cute, CUT_USEBE, out, nout)
 
--  Hamming window::
+**Effective SAC Commands**
 
-      y_i = x_i * (f0 + f1 * cos(omega * (i-fsamp) - pi)
-      f0 = 0.54
-      f1 = 0.46
+.. code-block:: shell
 
-- Hanning window::
+    SAC> read raw.sac
+    SAC> cut 10 15
+    SAC> read raw.sac
 
-      y_i = x_i * (f0 + f1 * cos(omega * (i-fsamp) - pi)
-      f0 = 0.5
-      f1 = 0.5
 
--  Cosine window::
+Convolution
+-----------
 
-      if i < fsamp + wlen/10
-         y_i = x_i * 0.5 * (1.0 - cos( pi * (i-fsamp) )
-      if i > fsamp - wlen/10
-         y_i = x_i * 0.5 * (1.0 - cos( pi * (fsamp + wlen - 1 - i) )
-      else
-         y_i = x_i
+.. code-block:: c
+
+    void convolve(float *a, int na, float *b, int nb, float *c, int nc)
+
+Convolve two time series together
+
+**Arguments**
+
+- `a` - First time series
+- `na` - Length of a
+- `b` - Second time series
+- `nb` - Length of b
+- `c` - Output convolution of a and b, must be at least na+nb-a length
+- `nc` - Length of c, must be at least na+nb-1
+
+**Examples**
+
+.. code-block:: c
+
+    #define NMAX 2020
+    int na, nb, nerr, max, n;
+    float beg, delta, ya[NMAX], yb[NMAX], yc[2*NMAX];
+
+    max = NMAX;
+    // Read in the first file
+    rsac1("data.sac", ya, &na, &beg, &delta, &max, &nerr, SAC_STRING_LENGTH);
+
+    // Read in the second file
+    rsac1("triangle.sac", yb, &nb, &beg, &delta, &max, &nerr, SAC_STRING_LENGTH);
+
+    // Convolve the two time series
+    convolve(ya, na, yb, nb, yc, na+nb-1);
+
+
+
+**Effective SAC Commands**
+
+.. code-block:: shell
+
+    SAC> fg triangle delta 1e-2 npts 100
+    SAC> write triangle.sac
+    SAC> fg seismo
+    SAC> write data.sac
+    SAC> read data.sac triangle.sac
+    SAC> convolve
+
+
 
